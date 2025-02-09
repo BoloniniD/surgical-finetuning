@@ -61,4 +61,28 @@ def get_loaders(cfg, corruption_type, severity):
         val_dataset = Subset(dataset, val_idxs)
         te_dataset = Subset(dataset, test_idxs)
 
-    
+
+    trainloader = DataLoader(
+        tr_dataset,
+        batch_size=cfg.data.batch_size*cfg.data.gpu_per_node,
+        num_workers=cfg.data.num_workers,
+    )
+
+    valloader = DataLoader(
+        val_dataset,
+        batch_size=cfg.data.batch_size*cfg.data.gpu_per_node, 
+        num_workers=cfg.data.num_workers,
+    )  
+
+    testloader = DataLoader(
+        te_dataset,
+        batch_size=cfg.data.batch_size*cfg.data.gpu_per_node, 
+        num_workers=cfg.data.num_workers,
+    )  
+
+    loaders = {}
+    loaders["train"] = trainloader
+    loaders["val"] = valloader
+    loaders["test"] = testloader	
+
+    return loaders

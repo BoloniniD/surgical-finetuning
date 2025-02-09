@@ -31,6 +31,7 @@ def test(model, loader, criterion, cfg):
     all_test_corrects = []
     total_loss = 0.0
     for x, y in loader:
+        print(x.shape)
         x, y = x.cuda(), y.cuda()
         logits = model(x)
         loss = criterion(logits, y)
@@ -87,6 +88,7 @@ def train(model, loader, criterion, opt, cfg, orig_model=None):
     magnitudes = defaultdict(float)
 
     for x, y in loader:
+        print(x.shape)
         x, y = x.cuda(), y.cuda()
         logits = model(x)
         loss = criterion(logits, y)
@@ -103,7 +105,7 @@ def train(model, loader, criterion, opt, cfg, orig_model=None):
     return acc, total_loss, magnitudes
 
 
-@hydra.main(config_path="config", config_name="config")
+@hydra.main(config_path="./config", config_name="config")
 def main(cfg):
     cfg.args.log_dir = pathlib.Path.cwd()
     cfg.args.log_dir = os.path.join(
@@ -151,7 +153,7 @@ def main(cfg):
                     cfg.data.model_name,
                     cfg.user.ckpt_dir,
                     dataset_name,
-                    ThreatModel.corruptions,
+                    ThreatModel.corruptions.value,
                 )
 
                 orig_model = copy.deepcopy(model)
@@ -263,7 +265,8 @@ def main(cfg):
                             total_params = sum(p.numel() for p in model.parameters())
                             tune_metrics['frac_params'].append((total_params-no_weight)/total_params)
                             print(f"Tuning {(total_params-no_weight)} out of {total_params} total")
-                        
+                    
+                    print("LOADERS LOADERS - ", loaders)
                     acc_tr, loss_tr, grad_magnitudes = train(
                         model, loaders["train"], criterion, opt, cfg, orig_model=orig_model
                     )
