@@ -4,6 +4,8 @@ defaults:
   - _self_
 
 user:
+  ckpt_dir: C:/Users/denis/Documents/surgical-finetuning/projects/pretrained 
+  root_dir: C:/Users/denis/Documents/surgical-finetuning/projects/data
   wandb_id: boloninid
 
 wandb:
