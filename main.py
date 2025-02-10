@@ -9,14 +9,21 @@ from datetime import date
 import hydra
 import numpy as np
 import torch
+from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torchvision.models as models
 from robustbench.model_zoo.enums import ThreatModel
 from robustbench.utils import load_model
 import wandb
+from loguru import logger
+from huggingface_hub import hf_hub_download
 
 import utils
 from dataset import get_loaders
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 @torch.no_grad()
@@ -36,7 +43,6 @@ def test(model, loader, criterion, cfg):
     all_test_corrects = []
     total_loss = 0.0
     for x, y in loader:
-        print(x.shape)
         x, y = x.cuda(), y.cuda()  # Move data to GPU
         logits = model(x)
         loss = criterion(logits, y)
@@ -122,7 +128,6 @@ def train(model, loader, criterion, opt, cfg, orig_model=None):
     magnitudes = defaultdict(float)
 
     for x, y in loader:
-        print(x.shape)
         x, y = x.cuda(), y.cuda()
         logits = model(x)
         loss = criterion(logits, y)
@@ -150,17 +155,18 @@ def main(cfg):
         date.today().strftime("%Y.%m.%d"),
         cfg.args.auto_tune,
     )
-    print(f"Log dir: {cfg.args.log_dir}")
+    logger.info(f"Log dir: {cfg.args.log_dir}")
     os.makedirs(cfg.args.log_dir, exist_ok=True)
 
     # Define which layers can be tuned based on model architecture
-    tune_options = [
-        "first_two_block",
-        "second_block",
-        "third_block",
-        "last",
-        "all",
-    ]
+    #tune_options = [
+    #    "first_two_block",
+    #    "second_block",
+    #    "third_block",
+    #    "last",
+    #    "all",
+    #]
+    tune_options = ["all"]
     # Add extra block option for ImageNet-C dataset
     if cfg.data.dataset_name == "imagenet-c":
         tune_options.append("fourth_block")
@@ -215,6 +221,14 @@ def main(cfg):
                     dataset_name,
                     ThreatModel.corruptions.value,
                 )
+                
+                '''model_path = hf_hub_download("edadaltocg/resnet18_cifar10", filename="pytorch_model.bin")
+                model = models.resnet18(pretrained=False, num_classes=10)
+                model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+                state_dict = torch.load(model_path, map_location=torch.device('cuda'))
+                model.load_state_dict(state_dict, strict=False)'''
+
+                #model = timm.create_model("resnet18_cifar10", pretrained=True)
 
                 # Create a copy of original model and move to GPU
                 orig_model = copy.deepcopy(model)
@@ -267,16 +281,17 @@ def main(cfg):
                 # Calculate number of trainable parameters
                 N = sum(p.numel() for p in params_list if p.requires_grad)
 
-                # Print training configuration
-                print(
+                # print training configuration
+                logger.info(
                     f"\nTrain mode={cfg.args.train_mode}, using {cfg.args.train_n} corrupted images for training"
                 )
-                print(
+                logger.info(
                     f"Re-training {tune_option} ({N} params). lr={lr}, wd={wd}. Corruption {corruption_type}"
                 )
 
                 # Set up loss function and initialize layer weights
                 criterion = F.cross_entropy
+                
                 layer_weights = [
                     0 for layer, _ in model.named_parameters() if "bn" not in layer
                 ]
@@ -316,15 +331,15 @@ def main(cfg):
                         elif cfg.args.auto_tune == "eb-criterion":
                             # Evidence-based criterion auto-tuning
                             weights = get_lr_weights(model, loaders["train"], cfg)
-                            print(
+                            logger.info(
                                 f"Epoch {epoch}, autotuning weights {min(weights.values()), max(weights.values())}"
                             )
                             tune_metrics["max_weight"].append(max(weights.values()))
                             tune_metrics["min_weight"].append(min(weights.values()))
-                            print(weights.values())
+                            logger.info(weights.values())
                             for k, v in weights.items():
                                 weights[k] = 0.0 if v < 0.95 else 1.0
-                            print("weight values", weights.values())
+                            logger.info(f"weight values {weights.values()}")
                             layer_weights = [
                                 sum(x) for x in zip(layer_weights, weights.values())
                             ]
@@ -355,7 +370,7 @@ def main(cfg):
                             tune_metrics["frac_params"].append(
                                 (total_params - no_weight) / total_params
                             )
-                            print(
+                            logger.info(
                                 f"Tuning {(total_params-no_weight)} out of {total_params} total"
                             )
 
@@ -385,7 +400,7 @@ def main(cfg):
                         f"{tune_option}/test/acc": acc_te,
                         f"{tune_option}/test/loss": loss_te,
                     }
-                    print(
+                    logger.info(
                         f"Epoch {epoch:2d} Train acc: {acc_tr:.4f}, Val acc: {acc_val:.4f}"
                     )
 
@@ -402,7 +417,7 @@ def main(cfg):
             best_testacc = tune_metrics["acc_te"][best_run_idx]
             best_lr_wd = best_run_idx // (cfg.args.epochs)
 
-            print(
+            logger.info(
                 f"Best epoch: {best_run_idx % (cfg.args.epochs)}, Test Acc: {best_testacc}"
             )
 
