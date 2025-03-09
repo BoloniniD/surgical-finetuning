@@ -200,8 +200,10 @@ def main(cfg):
 
             # Define grid of learning rates and weight decay values to try
             lr_wd_grid = [
-                (1e-1, 1e-4),
+                #(1e-1, 1e-4),
+                #(1e-3, 1e-4),
                 (1e-3, 1e-4),
+                (1e-4, 1e-4),
                 (1e-5, 1e-4),
             ]
 
@@ -215,18 +217,18 @@ def main(cfg):
                 )
 
                 # Load pre-trained model
-                model = load_model(
-                    cfg.data.model_name,
-                    cfg.user.ckpt_dir,
-                    dataset_name,
-                    ThreatModel.corruptions.value,
-                )
+                #model = load_model(
+                #    cfg.data.model_name,
+                #    cfg.user.ckpt_dir,
+                #    dataset_name,
+                #    ThreatModel.corruptions.value,
+                #)
                 
-                '''model_path = hf_hub_download("edadaltocg/resnet18_cifar10", filename="pytorch_model.bin")
-                model = models.resnet18(pretrained=False, num_classes=10)
+                model_path = hf_hub_download("edadaltocg/resnet50_cifar10", filename="pytorch_model.bin")
+                model = models.resnet50(pretrained=False, num_classes=10)
                 model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
                 state_dict = torch.load(model_path, map_location=torch.device('cuda'))
-                model.load_state_dict(state_dict, strict=False)'''
+                model.load_state_dict(state_dict, strict=False)
 
                 #model = timm.create_model("resnet18_cifar10", pretrained=True)
 
@@ -238,7 +240,7 @@ def main(cfg):
                 if cfg.data.dataset_name == "cifar10":
                     tune_params_dict = {
                         "all": [model.parameters()],
-                        "first_two_block": [
+                        "first_two_block": '''[
                             model.conv1.parameters(),
                             model.block1.parameters(),
                         ],
@@ -248,7 +250,7 @@ def main(cfg):
                         "third_block": [
                             model.block3.parameters(),
                         ],
-                        "last": [model.fc.parameters()],
+                        "last": [model.fc.parameters()],'''
                     }
                 elif cfg.data.dataset_name == "imagenet-c":
                     tune_params_dict = {
@@ -329,7 +331,6 @@ def main(cfg):
                             opt = optim.Adam(params_weights, lr=lr, weight_decay=wd)
 
                         elif cfg.args.auto_tune == "eb-criterion":
-                            # Evidence-based criterion auto-tuning
                             weights = get_lr_weights(model, loaders["train"], cfg)
                             logger.info(
                                 f"Epoch {epoch}, autotuning weights {min(weights.values()), max(weights.values())}"
